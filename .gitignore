@@ -1,0 +1,13 @@
+node_modules/
+client/node_modules/
+server/node_modules/
+client/dist/
+.env
+.env.local
+server/.env
+data/*.json
+agent-workspaces/
+npm-debug.log*
+.DS_Store
+__pycache__/
+*.pyc

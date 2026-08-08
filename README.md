@@ -1,0 +1,78 @@
+# Alutra Code
+
+Alutra Code is a local, multi-provider AI workspace for everyday coding questions and guarded software-building tasks. It has a React/Vite interface and an Express API, with adapters for OpenAI, Anthropic, Google Gemini, DeepSeek, and Perplexity.
+
+## Features
+
+- **Daily Questions** keeps a persisted conversation thread for focused debugging, explanations, and snippets.
+- **Agent Mode** asks the selected model for a task plan first, then runs up to three guarded implementation iterations in a new local workspace.
+- **Five provider adapters** share one chat interface. Select a provider explicitly or choose **Auto** to try configured providers in free-first order: OpenAI, Claude, Gemini, DeepSeek, Perplexity.
+- **Rate-limit fallback** puts providers returning HTTP 429 or 5xx into a 60-second cooldown. Auto mode then tries another configured provider.
+- **No hosted key store**. Server keys live in `server/.env`; the UI key vault is an optional local-browser convenience and its values are only posted to your own local API for a request.
+- Conversation records are JSON files in `server/data/` and agent output is written under `server/agent-workspaces/` by default. Both are gitignored.
+
+## Requirements
+
+- Node.js 20 or newer (Node 18+ supports `fetch`, but Node 20 is recommended)
+- API key from at least one supported provider
+
+## Quick Start
+
+1. Copy `.env.example` to `server/.env`.
+2. Add one or more provider keys to `server/.env`.
+3. Launch with `start.bat` on Windows or `./start.sh` on macOS/Linux.
+4. Open `http://localhost:5173`.
+
+Equivalent manual commands:
+
+```sh
+npm run install:all
+npm run dev
+```
+
+The API listens on `http://localhost:8787`. The Vite client listens on `http://localhost:5173`.
+
+## Environment Variables
+
+Place these in `server/.env`; do not commit the file.
+
+| Variable | Purpose | Default model |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | OpenAI / ChatGPT API key | `gpt-4o-mini` |
+| `ANTHROPIC_API_KEY` | Anthropic Claude API key | `claude-3-5-haiku-latest` |
+| `GEMINI_API_KEY` | Google AI Studio key | `gemini-1.5-flash` |
+| `DEEPSEEK_API_KEY` | DeepSeek API key | `deepseek-chat` |
+| `PERPLEXITY_API_KEY` | Perplexity API key | `llama-3.1-sonar-small-128k-online` |
+| `PORT` | Local API port | `8787` |
+| `ALLOWED_ORIGIN` | Browser origin permitted by CORS | `http://localhost:5173` |
+| `DATA_DIR` | Conversation data directory | `./data` |
+| `WORKSPACE_ROOT` | Agent output directory | `./agent-workspaces` |
+
+Set `OPENAI_MODEL`, `ANTHROPIC_MODEL`, `GEMINI_MODEL`, `DEEPSEEK_MODEL`, or `PERPLEXITY_MODEL` to override a model.
+
+## Free Tier Notes
+
+Provider pricing, trial credits, and model availability change frequently. This app does not claim that a specific commercial API is permanently free. Use models and accounts that your provider currently offers within your budget. Gemini's AI Studio quota is often a useful free starting point; DeepSeek may also be low cost. Confirm current quotas directly with each provider.
+
+`Auto (best available)` does not bypass provider quotas. It only attempts another configured provider after a retryable provider error. Use explicit selection when model behavior matters.
+
+## Agent Safety Model
+
+Agent Mode is intentionally constrained, not a general shell. Each task receives a new workspace. Paths that escape that workspace are rejected. The only executable names permitted are `npm`, `npx`, and `node`; command arguments with shell operators are rejected; each command has a 60-second timeout. Review generated code before using it in a production system.
+
+The agent endpoint currently returns progress after completion, rather than streaming tokens. This makes the initial local deployment simple and avoids keeping long-lived HTTP connections open.
+
+## Project Layout
+
+```text
+alutra-code/
+  client/              React + Vite dark interface
+  server/              Express API, LLM adapters, store, agent runner
+  shared/              Provider definitions shared by client/server
+  .env.example         Environment configuration template
+  start.sh / start.bat Local launchers
+```
+
+## Production Deployment
+
+Build the client with `npm run build --prefix client`, serve `client/dist` from a static host, and set `VITE_API_URL` at build time to your HTTPS API. Restrict `ALLOWED_ORIGIN` to that exact frontend URL. Store secrets in the deployment platform's secret manager, not browser local storage.
