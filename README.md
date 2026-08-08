@@ -32,6 +32,30 @@ npm run dev
 
 The API listens on `http://localhost:8787`. The Vite client listens on `http://localhost:5173`.
 
+## Desktop App (.exe)
+
+Alutra Code ships as a native desktop app via Electron. The Express backend runs in the
+background inside the app, so you get a standalone window with no browser tab.
+
+```sh
+# Quick dev run: builds the client, opens the Electron window
+npm run electron
+
+# Build a platform installer into release/
+npm run dist            # current OS
+npm run dist:win        # Windows installer (.exe, NSIS)
+npm run dist:mac        # macOS (.dmg)
+npm run dist:linux      # Linux (AppImage)
+```
+
+- **Windows**: `release/Alutra-Code-Setup-1.0.0.exe` installs with desktop/start-menu
+  shortcuts. The packaged app reads `server/.env` for API keys, and the local key vault
+  in the UI still works per-conversation.
+- Data and agent workspaces are written under the OS user-data directory
+  (e.g. `%APPDATA%/Alutra Code/data`) so nothing is lost between installs.
+- The installer is unsigned, so Windows SmartScreen may warn you — choose
+  "More info" → "Run anyway" for your own build.
+
 ## Environment Variables
 
 Place these in `server/.env`; do not commit the file.
@@ -69,6 +93,7 @@ alutra-code/
   client/              React + Vite dark interface
   server/              Express API, LLM adapters, store, agent runner
   shared/              Provider definitions shared by client/server
+  electron/            Desktop shell (main process, spawns the server)
   .env.example         Environment configuration template
   start.sh / start.bat Local launchers
 ```

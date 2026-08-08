@@ -1,4 +1,7 @@
 import "dotenv/config";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
 import express from "express";
 import cors from "cors";
 import { nanoid } from "nanoid";
@@ -11,6 +14,13 @@ import { runAgent } from "./agent.js";
 const app = express();
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN || "http://localhost:5173" }));
 app.use(express.json({ limit: "1mb" }));
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const clientDist = resolve(__dirname, "../../client/dist");
+if (existsSync(join(clientDist, "index.html"))) {
+  app.use(express.static(clientDist));
+  app.get(/^\/(?!api\/).*/, (_request, response) => response.sendFile(join(clientDist, "index.html")));
+}
 
 const keySet = (value) => typeof value === "string" && value.length > 10;
 const validKeys = (keys) => Object.fromEntries(Object.entries(keys || {}).filter(([id, value]) => PROVIDERS[id] && keySet(value)));
