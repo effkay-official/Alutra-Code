@@ -1,10 +1,25 @@
 import { config as loadEnv } from "dotenv";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: resolve(__dirname, "../.env") });
+
+// Resolve relative data/workspace paths against the server directory,
+// regardless of which CWD launched the process (dev, CLI, or Docker).
+// Absolute values (e.g. Electron's userData dirs) are left untouched.
+const serverRoot = resolve(__dirname, "..");
+if (!process.env.DATA_DIR) {
+  process.env.DATA_DIR = join(serverRoot, "data");
+} else if (!isAbsolute(process.env.DATA_DIR)) {
+  process.env.DATA_DIR = resolve(serverRoot, process.env.DATA_DIR);
+}
+if (!process.env.WORKSPACE_ROOT) {
+  process.env.WORKSPACE_ROOT = join(serverRoot, "agent-workspaces");
+} else if (!isAbsolute(process.env.WORKSPACE_ROOT)) {
+  process.env.WORKSPACE_ROOT = resolve(serverRoot, process.env.WORKSPACE_ROOT);
+}
 
 import express from "express";
 import cors from "cors";
