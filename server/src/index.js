@@ -28,7 +28,7 @@ import { PROVIDERS, providerOptions } from "../../shared/providers.js";
 import { DAILY_SYSTEM } from "./prompts.js";
 import { askWithFallback, streamWithFallback, isProviderConfigured } from "./providers.js";
 import { getConversation, saveConversation, listConversations, deleteConversation } from "./store.js";
-import { runAgent, summarizeSession, createPermissionRequest, resolvePermission } from "./agent.js";
+import { runAgent, summarizeSession, resolvePermission } from "./agent.js";
 import {
   getAuthorizeUrl, getToken, getGithubUser, newState, exchangeCode, clearToken, isGithubConfigured, listRepos, createGithubRepo, redirectUri
 } from "./github.js";
@@ -92,11 +92,6 @@ app.post("/api/agent/stream", async (request, response, next) => {
     response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", "X-Accel-Buffering": "no" });
     response.write(`retry: 2000\n\n`);
     const onEvent = (event) => {
-      if (event.type === "permission") {
-        const { id } = createPermissionRequest({ tool: event.tool, args: event.args, reason: event.reason });
-        sendEvent(response, { type: "permission", id, tool: event.tool, args: event.args, reason: event.reason });
-        return;
-      }
       sendEvent(response, event);
     };
     const result = await runAgent({ task: task.trim(), provider, keys: validKeys(keys), onEvent });

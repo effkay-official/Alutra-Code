@@ -28,6 +28,8 @@ export async function askProvider(id, messages, browserKeys = {}) {
   const key = browserKeys[id] || process.env[provider.key];
   if (!key) throw new ProviderError(`${provider.label} needs an API key. Add it in server/.env or the local key form.`, { status: 400 });
   if (id === "openai") return openAiCompatible("https://api.openai.com/v1/chat/completions", key, model, messages);
+  if (id === "openrouter") return openAiCompatible("https://openrouter.ai/api/v1/chat/completions", key, model, messages);
+  if (id === "zen") return openAiCompatible("https://opencode.ai/zen/v1/chat/completions", key, model, messages);
   if (id === "deepseek") return openAiCompatible("https://api.deepseek.com/chat/completions", key, model, messages);
   if (id === "perplexity") return openAiCompatible("https://api.perplexity.ai/chat/completions", key, model, messages);
   if (id === "anthropic") {
@@ -118,6 +120,8 @@ export async function* streamProvider(id, messages, browserKeys = {}) {
   const key = browserKeys[id] || process.env[provider.key];
   if (!key) throw new ProviderError(`${provider.label} needs an API key. Add it in server/.env or the local key form.`, { status: 400 });
   if (id === "openai") { yield* streamOpenAiCompatible("https://api.openai.com/v1/chat/completions", key, model, messages); return; }
+  if (id === "openrouter") { yield* streamOpenAiCompatible("https://openrouter.ai/api/v1/chat/completions", key, model, messages); return; }
+  if (id === "zen") { yield* streamOpenAiCompatible("https://opencode.ai/zen/v1/chat/completions", key, model, messages); return; }
   if (id === "deepseek") { yield* streamOpenAiCompatible("https://api.deepseek.com/chat/completions", key, model, messages); return; }
   if (id === "perplexity") { yield* streamOpenAiCompatible("https://api.perplexity.ai/chat/completions", key, model, messages); return; }
   const system = messages.find((message) => message.role === "system")?.content || "";
