@@ -26,9 +26,9 @@ import cors from "cors";
 import { nanoid } from "nanoid";
 import { PROVIDERS, providerOptions } from "../../shared/providers.js";
 import { DAILY_SYSTEM } from "./prompts.js";
-import { askWithFallback } from "./providers.js";
-import { getConversation, saveConversation } from "./store.js";
-import { runAgent } from "./agent.js";
+import { askWithFallback, streamWithFallback, isProviderConfigured } from "./providers.js";
+import { getConversation, saveConversation, listConversations, deleteConversation } from "./store.js";
+import { runAgent, summarizeSession, createPermissionRequest, resolvePermission } from "./agent.js";
 import {
   getAuthorizeUrl, getToken, getGithubUser, newState, exchangeCode, clearToken, isGithubConfigured, listRepos, createGithubRepo, redirectUri
 } from "./github.js";
@@ -46,8 +46,69 @@ if (existsSync(join(clientDist, "index.html"))) {
 const keySet = (value) => typeof value === "string" && value.length > 10;
 const validKeys = (keys) => Object.fromEntries(Object.entries(keys || {}).filter(([id, value]) => PROVIDERS[id] && keySet(value)));
 
-app.get("/api/providers", (_request, response) => response.json({ providers: providerOptions.map((item) => ({ ...item, configured: Boolean(process.env[PROVIDERS[item.id].key]) })) }));
+app.get("/api/providers", async (_request, response) => {
+  const list = [];
+  for (const item of providerOptions) list.push({ ...item, configured: await isProviderConfigured(item.id) });
+  response.json({ providers: list });
+});
 
+function sendEvent(response, event) {
+  response.write(`data: ${JSON.stringify(event)}\n\n`);
+}
+
+app.post("/api/chat/stream", async (request, response, next) => {
+  try {
+    const { content, conversationId = nanoid(), provider = "auto", keys = {} } = request.body;
+    if (!content?.trim()) return response.status(400).json({ error: "A message is required." });
+    const history = await getConversation(conversationId);
+    const messages = [{ role: "system", content: DAILY_SYSTEM }, ...history, { role: "user", content: content.trim() }];
+    response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", "X-Accel-Buffering": "no" });
+    response.write(`retry: 2000\n\n`);
+    let emitted = false;
+    const pieces = [];
+    try {
+      for await (const token of streamWithFallback(provider, messages, validKeys(keys))) {
+        emitted = true;
+        pieces.push(token);
+        sendEvent(response, { type: "token", text: token });
+      }
+      if (!emitted) throw new Error("The provider returned no text. Try a different model or add a provider key.");
+      const assistantText = pieces.join("");
+      const updated = [...history, { role: "user", content: content.trim() }, { role: "assistant", content: assistantText }];
+      await saveConversation(conversationId, updated);
+      sendEvent(response, { type: "done", conversationId, provider });
+    } catch (error) {
+      if (!response.headersSent) return next(error);
+      sendEvent(response, { type: "error", message: error.message || "Streaming failed." });
+    }
+    response.end();
+  } catch (error) { next(error); }
+});
+
+app.post("/api/agent/stream", async (request, response, next) => {
+  try {
+    const { task, provider = "auto", keys = {} } = request.body;
+    if (!task?.trim()) return response.status(400).json({ error: "A task is required." });
+    response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", "X-Accel-Buffering": "no" });
+    response.write(`retry: 2000\n\n`);
+    const onEvent = (event) => {
+      if (event.type === "permission") {
+        const { id } = createPermissionRequest({ tool: event.tool, args: event.args, reason: event.reason });
+        sendEvent(response, { type: "permission", id, tool: event.tool, args: event.args, reason: event.reason });
+        return;
+      }
+      sendEvent(response, event);
+    };
+    const result = await runAgent({ task: task.trim(), provider, keys: validKeys(keys), onEvent });
+    sendEvent(response, { type: "done", ...result });
+    response.end();
+  } catch (error) {
+    sendEvent(response, { type: "error", message: error.message });
+    response.end();
+  }
+});
+
+// Non-streaming chat (kept for compatibility / quick API use).
 app.post("/api/chat", async (request, response, next) => {
   try {
     const { content, conversationId = nanoid(), provider = "auto", keys = {} } = request.body;
@@ -61,13 +122,41 @@ app.post("/api/chat", async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
-app.post("/api/agent", async (request, response, next) => {
+app.post("/api/agent/permission", async (request, response) => {
+  const { id, allow, always = false } = request.body || {};
+  if (!id) return response.status(400).json({ error: "A permission id is required." });
+  const resolved = resolvePermission(id, { allow: Boolean(allow), always: Boolean(always) });
+  if (!resolved) return response.status(404).json({ error: "Permission request not found or already answered." });
+  response.json({ ok: true });
+});
+
+// Session management (list, load, delete).
+app.get("/api/sessions", async (_request, response, next) => {
+  try { response.json({ sessions: await listConversations() }); } catch (error) { next(error); }
+});
+
+app.get("/api/sessions/:id", async (request, response, next) => {
   try {
-    const { task, provider = "auto", keys = {} } = request.body;
-    if (!task?.trim()) return response.status(400).json({ error: "A task is required." });
-    const events = [];
-    const result = await runAgent({ task: task.trim(), provider, keys: validKeys(keys), onProgress: (event) => events.push(event) });
-    response.json({ ...result, events });
+    const history = await getConversation(request.params.id);
+    if (!history.length) return response.status(404).json({ error: "Conversation not found." });
+    response.json({ conversationId: request.params.id, messages: history });
+  } catch (error) { next(error); }
+});
+
+app.delete("/api/sessions/:id", async (request, response, next) => {
+  try { await deleteConversation(request.params.id); response.json({ ok: true }); } catch (error) { next(error); }
+});
+
+app.post("/api/sessions/compact", async (request, response, next) => {
+  try {
+    const { conversationId, provider = "auto", keys = {} } = request.body;
+    if (!conversationId) return response.status(400).json({ error: "A conversationId is required." });
+    const history = await getConversation(conversationId);
+    if (!history.length) return response.status(400).json({ error: "No conversation to compact." });
+    const summary = await summarizeSession(history, provider, validKeys(keys));
+    const newConversationId = nanoid();
+    await saveConversation(newConversationId, [{ role: "user", content: "Summary of previous session:\n" + summary }]);
+    response.json({ conversationId: newConversationId, summary });
   } catch (error) { next(error); }
 });
 

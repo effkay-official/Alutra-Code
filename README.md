@@ -124,6 +124,39 @@ agent tasks. This uses the standard **OAuth App** flow:
 > integration is an **API key**, which Alutra already uses. If you need ChatGPT model
 > access, add an API key in the key vault or `server/.env` and choose `ChatGPT` / Auto.
 
+## Streaming & Live Responses
+
+Chat and agent mode stream their output over Server-Sent Events (`/api/chat/stream` and
+`/api/agent/stream`), so text appears live instead of after completion. If a provider key
+is missing or a rate limit hits mid-stream, the client shows the error inline.
+
+## Agent Tool Loop
+
+Agent mode now uses an opencode-style tool loop instead of only `write` + `command`:
+
+- Tools: `write`, `edit`, `read`, `ls`, `glob`, `grep`, `bash`, `fetch`, and sub-agent.
+- The agent plans first, then iterates: choose tools → run them → summarize → continue until `done`.
+- **Permissions**: read-only tools run freely. `write`, `edit`, `fetch`, sub-agents, and
+  network/executable `bash` commands pause and ask for your approval — **Allow once**,
+  **Always allow**, or **Deny** (matching opencode's grant/deny model).
+- Safety: bash blocks operator-heavy commands, harmful executables, and anything outside
+  the task workspace; commands time out after 60s by default (max 600s).
+
+## GitHub Copilot
+
+Copilot is available as a provider (`gpt-4o` by default, override with `COPILOT_MODEL`).
+It reuses your **connected GitHub OAuth token** OR `GITHUB_TOKEN` in `server/.env`. Note:
+GitHub only grants Copilot API access to tokens carrying the `copilot` scope. If your
+connected token lacks it, run `gh auth login --scopes copilot` on the server machine and
+set `GITHUB_TOKEN` in `server/.env`. Alutra will report `configured: false` until the
+token exchange actually succeeds.
+
+## Sessions & Auto-Compact
+
+- The sidebar lists your saved conversations (titles auto-derived from the first message).
+- **Summarize & compact** replaces the current thread with an LLM-condensed summary so you
+  can keep going without losing context (opencode's compact behavior).
+
 ## Environment Variables
 
 Place these in `server/.env`; do not commit the file.
@@ -150,7 +183,10 @@ Provider pricing, trial credits, and model availability change frequently. This 
 
 ## Agent Safety Model
 
-Agent Mode is intentionally constrained, not a general shell. Each task receives a new workspace. Paths that escape that workspace are rejected. The only executable names permitted are `npm`, `npx`, and `node`; command arguments with shell operators are rejected; each command has a 60-second timeout. Review generated code before using it in a production system.
+Agent Mode is intentionally constrained, not a general shell. Each task receives a new
+workspace; paths that escape it are rejected. Bash tools block shell operators and harmful
+executables, require approval for network/executable commands, and time out (60s default).
+Read-only tools run freely. Review generated code before using it in a production system.
 
 The agent endpoint currently returns progress after completion, rather than streaming tokens. This makes the initial local deployment simple and avoids keeping long-lived HTTP connections open.
 
