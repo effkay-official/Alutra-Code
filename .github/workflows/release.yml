@@ -36,8 +36,8 @@ jobs:
         with:
           name: windows-installer
           path: |
-            release/Alutra-Code-Setup-*.exe
-            release/Alutra-Code-Setup-*.exe.blockmap
+            release/Alutra-Code-*.exe
+            release/Alutra-Code-*.exe.blockmap
             release/latest.yml
 
   release:

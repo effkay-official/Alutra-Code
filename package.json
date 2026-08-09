@@ -42,10 +42,14 @@
     "files": [
       "electron/**/*",
       "server/**/*",
+      "server/.env",
+      "server/.env.example",
       "shared/**/*",
       "build/**/*",
       "client/dist/**/*",
-      "package.json"
+      "package.json",
+      "!server/data/**/*",
+      "!server/agent-workspaces/**/*"
     ],
     "extraMetadata": {
       "main": "electron/main.js"
@@ -53,9 +57,10 @@
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        "nsis"
+        "nsis",
+        "portable"
       ],
-      "artifactName": "Alutra-Code-Setup-${version}.${ext}"
+      "artifactName": "Alutra-Code-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -65,6 +70,9 @@
       "shortcutName": "Alutra Code",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico"
+    },
+    "portable": {
+      "artifactName": "Alutra-Code-${version}-portable.${ext}"
     },
     "mac": {
       "icon": "build/icon.icns",
