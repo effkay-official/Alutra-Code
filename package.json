@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Alutra Code – a self-hosted multi-LLM AI agent for software development.",
   "main": "electron/main.js",
+  "author": {
+    "name": "Alutra Code",
+    "email": "effkay.official@gmail.com"
+  },
   "private": true,
   "scripts": {
     "dev": "concurrently -n server,client -c cyan,magenta \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
@@ -13,7 +17,8 @@
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac",
-    "dist:linux": "npm run build && electron-builder --linux"
+    "dist:linux": "npm run build && electron-builder --linux",
+    "icons": "node scripts/generate-icons.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -37,6 +42,7 @@
       "electron/**/*",
       "server/**/*",
       "shared/**/*",
+      "build/**/*",
       "client/dist/**/*",
       "package.json"
     ],
@@ -44,6 +50,7 @@
       "main": "electron/main.js"
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis"
       ],
@@ -54,15 +61,22 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Alutra Code"
+      "shortcutName": "Alutra Code",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
     },
     "mac": {
+      "icon": "build/icon.icns",
       "target": [
         "dmg"
       ],
-      "category": "public.app-category.developer-tools"
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "notarize": false
     },
     "linux": {
+      "icon": "build/icon.png",
       "target": [
         "AppImage"
       ],

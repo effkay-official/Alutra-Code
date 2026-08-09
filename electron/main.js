@@ -35,6 +35,7 @@ function startServer() {
 }
 
 function createWindow() {
+  const iconPath = path.join(__dirname, "..", "build", "icon.png");
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
@@ -42,6 +43,7 @@ function createWindow() {
     minHeight: 640,
     backgroundColor: "#111411",
     title: "Alutra Code",
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
