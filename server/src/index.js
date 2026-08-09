@@ -34,7 +34,8 @@ import {
 } from "./github.js";
 
 const app = express();
-app.use(cors({ origin: process.env.ALLOWED_ORIGIN || "http://localhost:5173" }));
+const allowedOrigins = (process.env.ALLOWED_ORIGIN || "http://localhost:5173").split(",").map((o) => o.trim()).filter(Boolean);
+app.use(cors({ origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)) }));
 app.use(express.json({ limit: "1mb" }));
 
 const clientDist = resolve(__dirname, "../../client/dist");
