@@ -34,6 +34,22 @@ function startServer() {
   });
 }
 
+function serverReady(timeoutMs = 20000) {
+  const url = `${APP_URL}/api/providers`;
+  const start = Date.now();
+  return new Promise((resolve) => {
+    const tick = async () => {
+      try {
+        const response = await fetch(url);
+        if (response.ok) return resolve(true);
+      } catch {}
+      if (Date.now() - start > timeoutMs) return resolve(false);
+      setTimeout(tick, 300);
+    };
+    tick();
+  });
+}
+
 function createWindow() {
   const iconPath = path.join(__dirname, "..", "build", "icon.png");
   mainWindow = new BrowserWindow({
@@ -57,19 +73,20 @@ function createWindow() {
     return { action: "deny" };
   });
 
-  let loaded = false;
   const tryLoad = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.loadURL(APP_URL).catch(() => {
-      setTimeout(() => { if (!loaded && mainWindow && !mainWindow.isDestroyed()) tryLoad(); }, 1000);
+      setTimeout(() => { if (mainWindow && !mainWindow.isDestroyed()) tryLoad(); }, 1000);
     });
   };
-  mainWindow.webContents.on("did-finish-load", () => { loaded = true; });
   tryLoad();
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   startServer();
+  const started = await serverReady();
+  if (!started) console.error("Alutra server did not start. Review the console output above.");
   createWindow();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
