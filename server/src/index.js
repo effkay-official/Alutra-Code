@@ -10,6 +10,9 @@ import { DAILY_SYSTEM } from "./prompts.js";
 import { askWithFallback } from "./providers.js";
 import { getConversation, saveConversation } from "./store.js";
 import { runAgent } from "./agent.js";
+import {
+  getAuthorizeUrl, getToken, getGithubUser, newState, exchangeCode, clearToken, isGithubConfigured, listRepos, createGithubRepo
+} from "./github.js";
 
 const app = express();
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN || "http://localhost:5173" }));
@@ -47,6 +50,53 @@ app.post("/api/agent", async (request, response, next) => {
     const events = [];
     const result = await runAgent({ task: task.trim(), provider, keys: validKeys(keys), onProgress: (event) => events.push(event) });
     response.json({ ...result, events });
+  } catch (error) { next(error); }
+});
+
+app.get("/api/github/status", async (_request, response, next) => {
+  try {
+    const configured = isGithubConfigured();
+    const user = await getGithubUser();
+    response.json({ configured, user });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/github/connect", async (_request, response, next) => {
+  try {
+    if (!isGithubConfigured()) return response.status(409).json({ error: "GitHub OAuth is not configured. Add GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET to server/.env." });
+    const state = newState();
+    response.json({ authorizeUrl: getAuthorizeUrl(state), redirectUri: `http://localhost:${process.env.PORT || 8787}/api/github/callback` });
+  } catch (error) { next(error); }
+});
+
+app.get("/api/github/callback", async (request, response, next) => {
+  try {
+    const { code, state } = request.query;
+    await exchangeCode(code, state);
+    const origin = process.env.ALLOWED_ORIGIN || "http://localhost:5173";
+    response.redirect(`${origin}/?github=connected`);
+  } catch (error) { next(error); }
+});
+
+app.post("/api/github/disconnect", async (_request, response) => {
+  await clearToken();
+  response.json({ ok: true });
+});
+
+app.get("/api/github/repos", async (request, response, next) => {
+  try {
+    const prefix = typeof request.query.q === "string" ? request.query.q : "";
+    const user = await getGithubUser();
+    if (!user) return response.json({ repos: [] });
+    response.json({ repos: await listRepos(user, prefix) });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/github/repos", async (request, response, next) => {
+  try {
+    const { name, description = "", private: isPrivate = false } = request.body || {};
+    if (!name?.trim()) return response.status(400).json({ error: "A repo name is required." });
+    response.json(await createGithubRepo({ name: name.trim(), description, private: isPrivate }));
   } catch (error) { next(error); }
 });
 

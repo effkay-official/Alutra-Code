@@ -84,6 +84,46 @@ certificates:
 
 Signed builds keep the same generated icon; nothing else changes.
 
+## Publishing a Release (.exe download)
+
+The repo includes a GitHub Actions workflow (`.github/workflows/release.yml`) that builds
+the Windows installer and attaches it to a GitHub Release. To publish a downloadable
+installer from the repo page:
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The workflow runs on GitHub's hosted Windows runner, uploads `Alutra-Code-Setup-*.exe`,
+and creates a Release with download links under **Releases** → **Latest**. You do not need
+to build locally or keep credentials on your machine.
+
+## GitHub Integration
+
+Alutra Code can link to GitHub as a third-party app so repositories can be connected to
+agent tasks. This uses the standard **OAuth App** flow:
+
+1. Create an OAuth App at https://github.com/settings/developers/apps with:
+   - **Homepage URL**: `http://localhost:8787`
+   - **Authorization callback URL**: `http://localhost:8787/api/github/callback`
+   - Scopes granted automatically: `repo`, `workflow`, `read:user`
+2. Put the client ID and secret in `server/.env`:
+
+   ```sh
+   GITHUB_CLIENT_ID=your_client_id
+   GITHUB_CLIENT_SECRET=your_client_secret
+   ```
+
+3. In the app, open **Linked with GitHub** → **Sign in with GitHub**. The token is stored
+   locally under `server/data/github.json` and is used to list your repositories (`List them
+   via the API from the client`) and is offered to agent sessions for repo publishing.
+
+> Note: There is no "link to ChatGPT" OAuth for desktop apps. OpenAI does not expose an
+> OAuth sign-in for consumer ChatGPT accounts to third parties — the supported third-party
+> integration is an **API key**, which Alutra already uses. If you need ChatGPT model
+> access, add an API key in the key vault or `server/.env` and choose `ChatGPT` / Auto.
+
 ## Environment Variables
 
 Place these in `server/.env`; do not commit the file.
