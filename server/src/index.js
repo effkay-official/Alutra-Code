@@ -25,9 +25,10 @@ import express from "express";
 import cors from "cors";
 import { nanoid } from "nanoid";
 import { PROVIDERS, providerOptions } from "../../shared/providers.js";
-import { DAILY_SYSTEM } from "./prompts.js";
+import { DAILY_SYSTEM, DAILY_TEMPLATES } from "./prompts.js";
 import { askWithFallback, streamWithFallback, isProviderConfigured } from "./providers.js";
 import { getConversation, saveConversation, listConversations, deleteConversation } from "./store.js";
+import { rememberFrom, memoryContext } from "./memory.js";
 import { runAgent, summarizeSession, resolvePermission } from "./agent.js";
 import {
   getAuthorizeUrl, getToken, getGithubUser, newState, exchangeCode, clearToken, isGithubConfigured, listRepos, createGithubRepo, redirectUri
@@ -59,10 +60,12 @@ function sendEvent(response, event) {
 
 app.post("/api/chat/stream", async (request, response, next) => {
   try {
-    const { content, conversationId = nanoid(), provider = "auto", keys = {} } = request.body;
+    const { content, conversationId = nanoid(), provider = "auto", keys = {}, template = "coder" } = request.body;
     if (!content?.trim()) return response.status(400).json({ error: "A message is required." });
+    const system = DAILY_TEMPLATES[template] || DAILY_SYSTEM;
+    const memory = await memoryContext();
     const history = await getConversation(conversationId);
-    const messages = [{ role: "system", content: DAILY_SYSTEM }, ...history, { role: "user", content: content.trim() }];
+    const messages = [{ role: "system", content: memory ? `${system}\n\n${memory}` : system }, ...history, { role: "user", content: content.trim() }];
     response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive", "X-Accel-Buffering": "no" });
     response.write(`retry: 2000\n\n`);
     let emitted = false;
@@ -77,6 +80,7 @@ app.post("/api/chat/stream", async (request, response, next) => {
       const assistantText = pieces.join("");
       const updated = [...history, { role: "user", content: content.trim() }, { role: "assistant", content: assistantText }];
       await saveConversation(conversationId, updated);
+      rememberFrom({ userText: content.trim(), assistantText, provider, keys: validKeys(keys) });
       sendEvent(response, { type: "done", conversationId, provider });
     } catch (error) {
       if (!response.headersSent) return next(error);
@@ -107,13 +111,16 @@ app.post("/api/agent/stream", async (request, response, next) => {
 // Non-streaming chat (kept for compatibility / quick API use).
 app.post("/api/chat", async (request, response, next) => {
   try {
-    const { content, conversationId = nanoid(), provider = "auto", keys = {} } = request.body;
+    const { content, conversationId = nanoid(), provider = "auto", keys = {}, template = "coder" } = request.body;
     if (!content?.trim()) return response.status(400).json({ error: "A message is required." });
+    const system = DAILY_TEMPLATES[template] || DAILY_SYSTEM;
+    const memory = await memoryContext();
     const history = await getConversation(conversationId);
-    const messages = [{ role: "system", content: DAILY_SYSTEM }, ...history, { role: "user", content: content.trim() }];
+    const messages = [{ role: "system", content: memory ? `${system}\n\n${memory}` : system }, ...history, { role: "user", content: content.trim() }];
     const result = await askWithFallback(provider, messages, validKeys(keys));
     const updated = [...history, { role: "user", content: content.trim() }, { role: "assistant", content: result.content }];
     await saveConversation(conversationId, updated);
+    rememberFrom({ userText: content.trim(), assistantText: result.content, provider, keys: validKeys(keys) });
     response.json({ conversationId, content: result.content, provider: result.provider });
   } catch (error) { next(error); }
 });

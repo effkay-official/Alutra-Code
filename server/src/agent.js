@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { nanoid } from "nanoid";
 import { PLANNER_SYSTEM, AGENT_SYSTEM, SUBAGENT_SYSTEM, SUMMARIZER_SYSTEM } from "./prompts.js";
 import { askWithFallback } from "./providers.js";
+import { memoryContext, rememberFrom } from "./memory.js";
 import { executeTool, requiresPermission, promptForToolUse } from "./tools.js";
 
 const MAX_TURNS = 6;
@@ -53,7 +54,9 @@ export function resolvePermission(id, decision) {
 }
 
 export async function runAgent({ task, provider, keys, onEvent, _ask = askWithFallback, _sub = askWithFallback }) {
-  const planResult = await _ask(provider, [{ role: "system", content: PLANNER_SYSTEM }, { role: "user", content: task }], keys);
+  const memory = await memoryContext();
+  const memo = memory ? `\n\nUser context:\n${memory}` : "";
+  const planResult = await _ask(provider, [{ role: "system", content: `${PLANNER_SYSTEM}${memo}` }, { role: "user", content: task }], keys);
   let plan;
   try { plan = JSON.parse(planResult.content); } catch { plan = ["Analyze the request", "Implement the requested project", "Verify the result"]; }
   onEvent({ type: "plan", plan, provider: planResult.provider });
@@ -76,7 +79,7 @@ export async function runAgent({ task, provider, keys, onEvent, _ask = askWithFa
 
   for (let turn = 0; turn < MAX_TURNS; turn += 1) {
     const result = await _ask(provider, [
-      { role: "system", content: `${AGENT_SYSTEM}\n\n${toolPrompt}` },
+      { role: "system", content: `${AGENT_SYSTEM}${memo}\n\n${toolPrompt}` },
       { role: "user", content: context }
     ], keys);
     let response;
@@ -109,7 +112,10 @@ export async function runAgent({ task, provider, keys, onEvent, _ask = askWithFa
     }
 
     onEvent({ type: "execution", message: response.summary || "Agent iteration complete.", provider: result.provider });
-    if (response.done || !actions.length) return { plan, progress, workspace, summary: response.summary || "Agent completed. Reviewed by Alutra Code.", provider: result.provider };
+    if (response.done || !actions.length) {
+      rememberFrom({ userText: task, assistantText: response.summary || "", provider, keys });
+      return { plan, progress, workspace, summary: response.summary || "Agent completed. Reviewed by Alutra Code.", provider: result.provider };
+    }
     context = `Continue the task. Latest results:\n${outcomes.join("\n") || "No actions executed yet."}\nOnly return the next safe actions, or mark done when complete.`;
   }
   return { plan, progress, workspace, summary: `Agent reached its ${MAX_TURNS}-iteration limit. Review progress and continue with a follow-up task if needed.` };
