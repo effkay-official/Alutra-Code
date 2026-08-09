@@ -1,7 +1,11 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+loadEnv({ path: resolve(__dirname, "../.env") });
+
 import express from "express";
 import cors from "cors";
 import { nanoid } from "nanoid";
@@ -11,14 +15,13 @@ import { askWithFallback } from "./providers.js";
 import { getConversation, saveConversation } from "./store.js";
 import { runAgent } from "./agent.js";
 import {
-  getAuthorizeUrl, getToken, getGithubUser, newState, exchangeCode, clearToken, isGithubConfigured, listRepos, createGithubRepo
+  getAuthorizeUrl, getToken, getGithubUser, newState, exchangeCode, clearToken, isGithubConfigured, listRepos, createGithubRepo, redirectUri
 } from "./github.js";
 
 const app = express();
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN || "http://localhost:5173" }));
 app.use(express.json({ limit: "1mb" }));
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const clientDist = resolve(__dirname, "../../client/dist");
 if (existsSync(join(clientDist, "index.html"))) {
   app.use(express.static(clientDist));
@@ -65,7 +68,7 @@ app.post("/api/github/connect", async (_request, response, next) => {
   try {
     if (!isGithubConfigured()) return response.status(409).json({ error: "GitHub OAuth is not configured. Add GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET to server/.env." });
     const state = newState();
-    response.json({ authorizeUrl: getAuthorizeUrl(state), redirectUri: `http://localhost:${process.env.PORT || 8787}/api/github/callback` });
+    response.json({ authorizeUrl: getAuthorizeUrl(state), redirectUri: redirectUri() });
   } catch (error) { next(error); }
 });
 
