@@ -8,7 +8,8 @@ release/
 .env.local
 server/.env
 data/*.json
-agent-workspaces/
+server/data/
+server/agent-workspaces/
 npm-debug.log*
 .DS_Store
 __pycache__/

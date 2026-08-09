@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8787";
+const API = import.meta.env.VITE_API_URL || "";
 const keyNames = { openai: "OpenAI", anthropic: "Anthropic", gemini: "Gemini", deepseek: "DeepSeek", perplexity: "Perplexity" };
 const initialKeys = () => JSON.parse(localStorage.getItem("alutra-api-keys") || "{}");
 

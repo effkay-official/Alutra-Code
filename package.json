@@ -13,6 +13,7 @@
     "start": "concurrently -n server,client -c cyan,magenta \"npm run start --prefix server\" \"npm run preview --prefix client\"",
     "install:all": "npm install && npm install --prefix server && npm install --prefix client",
     "build": "npm run build --prefix client",
+    "serve": "node server/src/index.js",
     "electron": "npm run build && electron .",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",

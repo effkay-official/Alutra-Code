@@ -73,7 +73,7 @@ app.get("/api/github/callback", async (request, response, next) => {
   try {
     const { code, state } = request.query;
     await exchangeCode(code, state);
-    const origin = process.env.ALLOWED_ORIGIN || "http://localhost:5173";
+    const origin = process.env.ALLOWED_ORIGIN || `${request.protocol}://${request.get("host")}`;
     response.redirect(`${origin}/?github=connected`);
   } catch (error) { next(error); }
 });

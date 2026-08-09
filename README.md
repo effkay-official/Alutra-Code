@@ -166,6 +166,54 @@ alutra-code/
   start.sh / start.bat Local launchers
 ```
 
-## Production Deployment
+## Production (Internet) Deployment
 
-Build the client with `npm run build --prefix client`, serve `client/dist` from a static host, and set `VITE_API_URL` at build time to your HTTPS API. Restrict `ALLOWED_ORIGIN` to that exact frontend URL. Store secrets in the deployment platform's secret manager, not browser local storage.
+Alutra Code can run as a normal public web app — the same Express server serves both the
+built UI and the API, so no separate static host is required. The client uses relative
+`/api` paths, so it works from any domain.
+
+### Option A — Docker (recommended)
+
+A `Dockerfile` is included. It installs all dependencies, builds the client, and runs the
+server in a containerized production image:
+
+```sh
+# from the repo root
+docker build -t alutra-code .
+docker run -d --name alutra-code -p 8787:8787 \
+  -v your_data_dir:/app/server/data \
+  -v your_workspaces:/app/server/agent-workspaces \
+  --env-file server/.env \
+  alutra-code
+```
+
+Mount volumes for `server/data` and `server/agent-workspaces` so conversations and agent
+output survive container rebuilds, and keep `server/.env` out of the image.
+
+### Option B — Direct Node
+
+```bash
+npm run build --prefix client
+npm run serve        # node server/src/index.js, serves client/dist + API on PORT
+```
+
+### Configuring the public OAuth callback
+
+1. In `server/.env` on the deployed machine set:
+   ```sh
+   PORT=8787                        # or 80/443 behind a reverse proxy
+   ALLOWED_ORIGIN=https://yourdomain.com
+   GITHUB_CLIENT_ID=...
+   GITHUB_CLIENT_SECRET=...
+   GITHUB_REDIRECT_URI=https://yourdomain.com/api/github/callback
+   ```
+2. In the GitHub OAuth app settings change the **Authorization callback URL** to
+   `https://yourdomain.com/api/github/callback`.
+3. Terminate TLS at a reverse proxy (e.g. Caddy or Nginx) and forward to port 8787, or
+   use a platform that handles HTTPS automatically.
+
+### Provider keys on the internet
+
+Provider API keys are read from the server environment (`server/.env`), never from the
+browser, so they stay secret on the deployed machine. Set them in the deployment
+platform's secret manager or the `.env` file on the server.

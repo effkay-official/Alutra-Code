@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+release
+client/dist
+server/data
+server/agent-workspaces
+.env
+server/.env
+*.log
+.git
+.github
